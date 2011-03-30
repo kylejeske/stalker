@@ -13,7 +13,6 @@ module Stalker
 
   # R. Berger added beanstalk_style_job param
   def enqueue(job, args={}, opts={}, beanstalk_style=false, style_opts={})
-    puts "enqueue: job: #{job} args: #{args.inspect} beanstalk_style: #{beanstalk_style.inspect} style_opts: #{style_opts.inspect}"
     pri   = opts[:pri]   || 65536
     delay = opts[:delay] || 0
     ttr   = opts[:ttr]   || 120
@@ -101,7 +100,6 @@ module Stalker
 
   # Passes the Beanstalk::Job instance to the Stalker job as a second argument after args
   def run_beanstalk_style_job(job, name, args, handler, style_opts)
-    puts "run_beanstalk_style_job(#{job}, #{name}, args: #{args.inspect}, handler: #{handler.inspect}, style_opts: #{style_opts.inspect})"
     begin
       Timeout::timeout(job.ttr - 1) do
         if defined? @@before_handlers and @@before_handlers.respond_to? :each
@@ -116,7 +114,6 @@ module Stalker
     end
     handler.call(args, style_opts.merge(:job => job))
     unless style_opts['explicit_delete']
-      puts "unless style_opts['explicit_delete']: #{style_opts['explicit_delete'].inspect}"
       job.delete
       log_job_end(name)
     end
