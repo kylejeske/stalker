@@ -1,33 +1,36 @@
 Stalker - a job queueing DSL for Beanstalk
 ==========================================
 
-New in this Fork (https://github.com/rberger/stalker)
+New in this [Fork](https://github.com/rberger/stalker)
 -------------------------------------------------------
 
-### Enable Stalker.job to access Beanstalker::Job instance
+### Enable `Stalker.job` to access `Beanstalker::Job` instance
 
-The `Stalker.job` can now have access to the `Beanstalk::Job` instance that was used to launch the `Stalker.job`
+The `Stalker.job` can now have access to the `Beanstalk::Job` instance that was used to launch the `Stalker.job`. 
 
-Added two more optional arguments to the end of the Stalker.enqueue argument list. 
+Added two more optional arguments to the end of the `Stalker.enqueue` argument list. 
 
 The original signature was:
 
     Stalker.enqueue(stalker_job, args={}, opts={})
 
-The signature to enable accessing Beanstalk::Job instance in your job is now:
+The signature to enable accessing `Beanstalk::Job` instance in your `Stalker.job` is now:
 
     Stalker.enqueue(stalker_job, args={}, opts={}, beanstalk_style=false, beanstalk_style_opts={})
 
 If the last two args are not used or `beanstalk_style = false`, then the behavior of Stalker is the same as before.
 If `beanstalk_style = true`, then when the `Stalker.job` is run by `Stalker.work`, the `Stalker.job` will get the instance of the `Beanstalk::Job` as the second argument after args.
 
+
 The new signature for the `Stalker.job` declaration that can accept its `Beanstalk::Job` is:
 
-    Stalker.job('myjob', args={}, job, beanstalk_style_opts={})
+    Stalker.job 'myjob' do |args, job, beanstalk_style_opts|
+      # Body of Job
+    end
 
-The `job` contains the instance of `Beanstalk::Job` that was used to launch the running instance of the `Stalker.job` when it is run by Stalker.work. The second is optional and contains the hash that was passed into `Stalker.enqueue`.
+The `job` contains the instance of `Beanstalk::Job` that was used to launch the running instance of the `Stalker.job` when it is run by `Stalker.work`. The `beanstalk_style_opts` is optional and contains the hash that was passed into `Stalker.enqueue`.
 
-So your `Stalker.job` can do all the normal methods of `Beanstalk::Job` on beanstalk_job:
+So your `Stalker.job` can do all the normal methods of `Beanstalk::Job` on the job that is passed in:
 
     require 'stalker' # Stalker 
     Stalker.job |args, job, opts| do
@@ -36,6 +39,21 @@ So your `Stalker.job` can do all the normal methods of `Beanstalk::Job` on beans
       job.touch
       job.delete if opts['explicit_delete]
     end
+
+#### Optional Over-rides
+
+When using the beanstalk style job, the `Stalker.job` will have the following differences than the standard `Stalker.job`:
+
+  * The `Stalker.job` itself will not be effected by the Stalker timeout, just the `Beanstalk::Job#ttr`
+  * The `Stalker.job` before handlers will still be effected by the Stalker timeout (which is set to the `Beanstalk::Job#ttr`)
+  * If the `Stalker.before` handlers timeout the job won't run and it will be timed out by Beanstalk
+
+There are behavior over-rides set by the optional `beanstalk_style_opts` hash
+
+  * `'bury_on_before_handler_timeout' => true` If the `Stalker.before` handlers timeout, the `Beanstalk::Job` instance will be buried
+  * `'explicit_delete' => true` Stalker will not automatically delete the Beanstalk job and will not call `Stalker.log_job_end`. 
+    It is up to you to handle the state of the job after its been started (mainly doing a job.delete, job.bury, etc.)
+
 
 Original Readme
 ===============
@@ -157,5 +175,5 @@ Released under the MIT License: http://www.opensource.org/licenses/mit-license.p
 
 http://github.com/adamwiggins/stalker
 
-Beanstalk::Job access by Robert J. Berger https://github.com/rberger/stalker
+`Beanstalk::Job` access by [Robert J. Berger](https://github.com/rberger/stalker)
 
