@@ -1,6 +1,45 @@
 Stalker - a job queueing DSL for Beanstalk
 ==========================================
 
+New in this Fork (https://github.com/rberger/stalker)
+-------------------------------------------------------
+
+### Enable Stalker.job to access Beanstalker::Job instance
+
+The `Stalker.job` can now have access to the `Beanstalk::Job` instance that was used to launch the `Stalker.job`
+
+Added two more optional arguments to the end of the Stalker.enqueue argument list. 
+
+The original signature was:
+
+    Stalker.enqueue(stalker_job, args={}, opts={})
+
+The signature to enable accessing Beanstalk::Job instance in your job is now:
+
+    Stalker.enqueue(stalker_job, args={}, opts={}, beanstalk_style=false, beanstalk_style_opts={})
+
+If the last two args are not used or `beanstalk_style = false`, then the behavior of Stalker is the same as before.
+If `beanstalk_style = true`, then when the `Stalker.job` is run by `Stalker.work`, the `Stalker.job` will get the instance of the `Beanstalk::Job` as the second argument after args.
+
+The new signature for the `Stalker.job` declaration that can accept its `Beanstalk::Job` is:
+
+    Stalker.job('myjob', args={}, job, beanstalk_style_opts={})
+
+The `job` contains the instance of `Beanstalk::Job` that was used to launch the running instance of the `Stalker.job` when it is run by Stalker.work. The second is optional and contains the hash that was passed into `Stalker.enqueue`.
+
+So your `Stalker.job` can do all the normal methods of `Beanstalk::Job` on beanstalk_job:
+
+    require 'stalker' # Stalker 
+    Stalker.job |args, job, opts| do
+      log "args: #{args.inspect} opts: #{opts.inspect}"
+      job.stats
+      job.touch
+      job.delete if opts['explicit_delete]
+    end
+
+Original Readme
+===============
+
 [Beanstalkd](http://kr.github.com/beanstalkd/) is a fast, lightweight queueing backend inspired by mmemcached.  The [Ruby Beanstalk client](http://beanstalk.rubyforge.org/) is a bit raw, however, so Stalker provides a thin wrapper to make job queueing from your Ruby app easy and fun.
 
 Queueing jobs
@@ -117,4 +156,6 @@ Heavily inspired by [Minion](http://github.com/orionz/minion) by Orion Henry
 Released under the MIT License: http://www.opensource.org/licenses/mit-license.php
 
 http://github.com/adamwiggins/stalker
+
+Beanstalk::Job access by Robert J. Berger https://github.com/rberger/stalker
 
