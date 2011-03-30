@@ -70,6 +70,12 @@ module Stalker
     job = beanstalk.reserve
     name, args = JSON.parse job.body
     log_job_begin(name, args)
+
+    # This is only diff from standard Stalker 0.8.0 R. Berger
+    # Passes in the Beanstalk::Job instance to the Proc that is the actual code for the job to be executed
+    # This gives that Proc the ability to access the Beanstalk::Job instance
+    args.merge!({:job => job})
+
     handler = @@handlers[name]
     raise(NoSuchJob, name) unless handler
 
