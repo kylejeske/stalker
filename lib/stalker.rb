@@ -11,12 +11,14 @@ module Stalker
     beanstalk
   end
 
-  def enqueue(job, args={}, opts={})
+  # R. Berger added beanstalk_style_job param
+  def enqueue(job, args={}, opts={}, beanstalk_style=false, style_opts={})
+    puts "enqueue: job: #{job} args: #{args.inspect} beanstalk_style: #{beanstalk_style.inspect} style_opts: #{style_opts.inspect}"
     pri   = opts[:pri]   || 65536
     delay = opts[:delay] || 0
     ttr   = opts[:ttr]   || 120
     beanstalk.use job
-    beanstalk.put [ job, args ].to_json, pri, delay, ttr
+    beanstalk.put [ job, args, beanstalk_style, style_opts ].to_json, pri, delay, ttr
   rescue Beanstalk::NotConnected => e
     failed_connection(e)
   end
@@ -68,32 +70,18 @@ module Stalker
 
   def work_one_job
     job = beanstalk.reserve
-    name, args = JSON.parse job.body
+    name, args, beanstalk_style, style_opts = JSON.parse job.body
     log_job_begin(name, args)
-
-    # This is only diff from standard Stalker 0.8.0 R. Berger
-    # Passes in the Beanstalk::Job instance to the Proc that is the actual code for the job to be executed
-    # This gives that Proc the ability to access the Beanstalk::Job instance
-    args.merge!({:job => job})
 
     handler = @@handlers[name]
     raise(NoSuchJob, name) unless handler
 
-    begin
-      Timeout::timeout(job.ttr - 1) do
-        if defined? @@before_handlers and @@before_handlers.respond_to? :each
-          @@before_handlers.each do |block|
-            block.call(name)
-          end
-        end
-        handler.call(args)
-      end
-    rescue Timeout::Error
-      raise JobTimeout, "#{name} hit #{job.ttr-1}s timeout"
+    if beanstalk_style
+      run_beanstalk_style_job(job, name, args, handler, style_opts)
+    else
+      run_stalker_style_job(job, name, args, handler)
     end
-
-    job.delete
-    log_job_end(name)
+    
   rescue Beanstalk::NotConnected => e
     failed_connection(e)
   rescue SystemExit
@@ -111,6 +99,47 @@ module Stalker
     end
   end
 
+  # Passes the Beanstalk::Job instance to the Stalker job as a second argument after args
+  def run_beanstalk_style_job(job, name, args, handler, style_opts)
+    puts "run_beanstalk_style_job(#{job}, #{name}, args: #{args.inspect}, handler: #{handler.inspect}, style_opts: #{style_opts.inspect})"
+    begin
+      Timeout::timeout(job.ttr - 1) do
+        if defined? @@before_handlers and @@before_handlers.respond_to? :each
+          @@before_handlers.each do |block|
+            block.call(name)
+          end
+        end
+      end
+    rescue Timeout::Error
+      raise JobTimeout, "Stalker before_handlers for Stalker.job##{name} hit #{job.ttr-1}s timeout"
+      job.bury rescue nil if style_opts['bury_on_before_handler_timeout']
+    end
+    handler.call(args, style_opts.merge(:job => job))
+    unless style_opts['explicit_delete']
+      puts "unless style_opts['explicit_delete']: #{style_opts['explicit_delete'].inspect}"
+      job.delete
+      log_job_end(name)
+    end
+  end
+
+  def run_stalker_style_job(job, name, args, handler)
+    begin
+      Timeout::timeout(job.ttr - 1) do
+        if defined? @@before_handlers and @@before_handlers.respond_to? :each
+          @@before_handlers.each do |block|
+            block.call(name)
+          end
+        end
+        handler.call(args)
+      end
+    rescue Timeout::Error
+      raise JobTimeout, "#{name} hit #{job.ttr-1}s timeout"
+    end
+
+    job.delete
+    log_job_end(name)
+  end
+  
   def failed_connection(e)
     log_error exception_message(e)
     log_error "*** Failed connection to #{beanstalk_url}"
