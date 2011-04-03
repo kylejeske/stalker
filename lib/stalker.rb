@@ -11,7 +11,24 @@ module Stalker
     beanstalk
   end
 
+  ##
   # R. Berger added beanstalk_style_job param
+  # @param [String] job Name of the Stalker.job
+  # @param [Hash] args The standard Stalker.job args
+  # @option [Integer] :pri The Job priority
+  # @option [Integer] :delay Delay in seconds before job is ready to be reserved
+  # @option [Integer] :ttr Number of seconds before the job will timeout after it has been reserved
+  # @param [Boolean] beanstalk_style If true, job will have access to the Beanstalk::Job instance as a 3rd arg to Stalker.job
+  #   Defaults to false
+  # @param [Hash] style_opts If beanstalk_style is true, then style_opts has members that control variations on the Stalker.job lifecyle
+  # @option [Boolean] :no_bury_for_before_handler_timeout If true, Do NOT bury the job if the before handlers have an exception
+  #   Defaults to not set (false)
+  # @option [Boolean] :explicit_delete If true, It will be up to your job to explicitly deltete, bury or release the Beanstalk::Job instance
+  #   Default to not set (false)
+  # @option [Booleasn] :no_bury_for_error_handler If true, AND there is an error handler in place, 
+  #   Stalker will NOT bury the Beanstalk::Job if there is an Exception while the job is running
+  #   Default is not set (false)
+  #
   def enqueue(job, args={}, opts={}, beanstalk_style=false, style_opts={})
     pri   = opts[:pri]   || 65536
     delay = opts[:delay] || 0
@@ -87,7 +104,7 @@ module Stalker
     raise
   rescue => e
     log_error exception_message(e)
-    job.bury rescue nil
+    job.bury rescue nil if error_nandler && (not style_opts['no_bury_for_error_handler'])
     log_job_end(name, 'failed')
     if error_handler
       if error_handler.arity == 1
@@ -110,7 +127,7 @@ module Stalker
       end
     rescue Timeout::Error
       raise JobTimeout, "Stalker before_handlers for Stalker.job##{name} hit #{job.ttr-1}s timeout"
-      job.bury rescue nil if style_opts['bury_on_before_handler_timeout']
+      job.bury rescue nil unless style_opts['no_bury_for_before_handler_timeout']
     end
     handler.call(args, style_opts.merge(:job => job))
     unless style_opts['explicit_delete']
