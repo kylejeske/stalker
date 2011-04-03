@@ -129,7 +129,7 @@ module Stalker
       raise JobTimeout, "Stalker before_handlers for Stalker.job##{name} hit #{job.ttr-1}s timeout"
       job.bury rescue nil unless style_opts['no_bury_for_before_handler_timeout']
     end
-    handler.call(args, style_opts.merge(:job => job))
+    handler.call(args, job, style_opts)
     unless style_opts['explicit_delete']
       job.delete
       log_job_end(name)
