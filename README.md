@@ -42,17 +42,19 @@ So your `Stalker.job` can do all the normal methods of `Beanstalk::Job` on the j
 
 #### Optional Over-rides
 
-When using the beanstalk style job, the `Stalker.job` will have the following differences than the standard `Stalker.job`:
+When using the beanstalk style job and `no_bury_for_before_handler_timeout => true`, the `Stalker.job` will have the following 
+differences than the standard `Stalker.job`:
 
   * The `Stalker.job` itself will not be effected by the Stalker timeout, just the `Beanstalk::Job#ttr`
   * The `Stalker.job` before handlers will still be effected by the Stalker timeout (which is set to the `Beanstalk::Job#ttr`)
   * If the `Stalker.before` handlers timeout the job won't run and it will be timed out by Beanstalk
 
-There are behavior over-rides set by the optional `beanstalk_style_opts` hash
+There are additional behavior over-rides set by the optional `beanstalk_style_opts` hash
 
-  * `'bury_on_before_handler_timeout' => true` If the `Stalker.before` handlers timeout, the `Beanstalk::Job` instance will be buried
   * `'explicit_delete' => true` Stalker will not automatically delete the Beanstalk job and will not call `Stalker.log_job_end`. 
     It is up to you to handle the state of the job after its been started (mainly doing a job.delete, job.bury, etc.)
+  * `'no_bury_for_error_handler' => true` Stalker will not bury the Beanstalk job if there is an Exception and there is an `error_handler` set. 
+    It is up to your Stalker.job's `error_handler` to properly bury, delete or release the job
 
 
 Original Readme
