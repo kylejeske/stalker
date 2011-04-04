@@ -10,11 +10,11 @@ The `Stalker.job` can now have access to the `Beanstalk::Job` instance that was 
 
 Added two more optional arguments to the end of the `Stalker.enqueue` argument list. 
 
-The original signature was:
+If you use the existing signature for enqueue, there is no change in behavior and the Stalker.job still does not have access to the Beanstalk::Job instance.
 
     Stalker.enqueue(stalker_job, args={}, opts={})
 
-The signature to enable accessing `Beanstalk::Job` instance in your `Stalker.job` is now:
+The new calling signature to enable accessing the `Beanstalk::Job` instance in your `Stalker.job` is:
 
     Stalker.enqueue(stalker_job, args={}, opts={}, beanstalk_style=false, beanstalk_style_opts={})
 
@@ -33,27 +33,25 @@ The `job` contains the instance of `Beanstalk::Job` that was used to launch the 
 So your `Stalker.job` can do all the normal methods of `Beanstalk::Job` on the job that is passed in:
 
     require 'stalker' # Stalker 
-    Stalker.job |args, job, opts| do
+    Stalker.job 'myjob' |args, job, opts| do
       log "args: #{args.inspect} opts: #{opts.inspect}"
       job.stats
       job.touch
       job.delete if opts['explicit_delete]
     end
 
-#### Optional Over-rides
+#### Optional Over-rides ####
 
-When using the beanstalk style job and `no_bury_for_before_handler_timeout => true`, the `Stalker.job` will have the following 
-differences than the standard `Stalker.job`:
+If you pass in true for the 4th argument of `Stalker.enqueue` and do not set `beanstalk_style_opts`, then the behavior of the Stalker.job is exactly the same as the old style, except your Stalker.job will have access to the Beanstalk:Job instance as its 2nd argument (after args).
 
-  * The `Stalker.job` itself will not be effected by the Stalker timeout, just the `Beanstalk::Job#ttr`
-  * The `Stalker.job` before handlers will still be effected by the Stalker timeout (which is set to the `Beanstalk::Job#ttr`)
-  * If the `Stalker.before` handlers timeout the job won't run and it will be timed out by Beanstalk
+You can use the 5th argument to `Stalker.enqueue` to pass in `beanstalk_style_opts` hash to override some of the Stalker behavior:
 
-There are additional behavior over-rides set by the optional `beanstalk_style_opts` hash
+* `run_job_outside_of_stalker_timeout => true`, The job will be run outside of the Stalker Timeout Only the Beanstalk::Job#ttr applies. If you use this mode, there can be no `before_handlers` for this job.
 
-  * `'explicit_delete' => true` Stalker will not automatically delete the Beanstalk job and will not call `Stalker.log_job_end`. 
+* `'explicit_delete' => true` Stalker will not automatically delete the Beanstalk job and will not call `Stalker.log_job_end`. 
     It is up to you to handle the state of the job after its been started (mainly doing a job.delete, job.bury, etc.)
-  * `'no_bury_for_error_handler' => true` Stalker will not bury the Beanstalk job if there is an Exception and there is an `error_handler` set. 
+
+* `'no_bury_for_error_handler' => true` Stalker will not bury the Beanstalk job if there is an Exception and there is an `error_handler` set.
     It is up to your Stalker.job's `error_handler` to properly bury, delete or release the job
 
 

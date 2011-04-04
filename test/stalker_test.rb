@@ -31,34 +31,6 @@ class StalkerTest < Test::Unit::TestCase
     assert_equal val, $result
   end
   
-  test "job gets its Beanstalker::Job instance when beanstalk_style is set" do
-    val = rand(999999)
-    Stalker.job('mybeanstalk.job') { |args, job, opts| $result = job.class }
-    Stalker.enqueue('mybeanstalk.job', {:val => val}, {}, true)
-    Stalker.prep
-    Stalker.work_one_job
-    assert_equal Beanstalk::Job, $result
-  end
-
-  test "beanstalk_style job gets style_opts" do
-    style_opts = {'test' => 42}
-    
-    Stalker.job('style_opts.job') { |args, job, opts| $result = opts['test'] }
-    Stalker.enqueue('style_opts.job', {'an_arg' => "help"}, {:ttr => 100}, true, style_opts)
-    Stalker.prep
-    Stalker.work_one_job
-    assert_equal style_opts['test'], $result
-  end
-
-  test "beanstalk_style job can delete itself when enqueued with explicit_delete" do
-    val = rand(999999)
-    Stalker.job('self_delete.job') { |args, job, opts| $result = args['val']; job.delete }
-    Stalker.enqueue('self_delete.job', {:val => val}, {}, true, {'explicit_delete' => true})
-    Stalker.prep
-    Stalker.work_one_job
-    assert_equal val, $result
-    assert_equal 0, Stalker.beanstalk.stats_tube('self_delete.job')['current-waiting']
-  end
   
   test "invoke error handler when defined" do
     with_an_error_handler

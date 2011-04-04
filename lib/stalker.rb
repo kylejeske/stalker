@@ -21,8 +21,9 @@ module Stalker
   # @param [Boolean] beanstalk_style If true, job will have access to the Beanstalk::Job instance as a 3rd arg to Stalker.job
   #   Defaults to false
   # @param [Hash] style_opts If beanstalk_style is true, then style_opts has members that control variations on the Stalker.job lifecyle
-  # @option [Boolean] :no_bury_for_before_handler_timeout If true, Do NOT bury the job if the before handlers have an exception
-  #   Defaults to not set (false)
+  # @option [Boolean] :run_job_outside_of_stalker_timeout The job will be run outside of the 
+  #   Stalker Timeout Only the Beanstalk::Job#ttr applies. If you use this mode, there can be no
+  #   before_handlers for this job.
   # @option [Boolean] :explicit_delete If true, It will be up to your job to explicitly deltete, bury or release the Beanstalk::Job instance
   #   Default to not set (false)
   # @option [Booleasn] :no_bury_for_error_handler If true, AND there is an error handler in place, 
@@ -104,11 +105,13 @@ module Stalker
     raise
   rescue => e
     log_error exception_message(e)
-    job.bury rescue nil if error_nandler && (not style_opts['no_bury_for_error_handler'])
+    job.bury rescue nil unless style_opts['no_bury_for_error_handler'] && error_handler
     log_job_end(name, 'failed')
     if error_handler
       if error_handler.arity == 1
         error_handler.call(e)
+      elsif error_handler.arity == 5
+        error_handler.call(e, name, args, job, style_opts)
       else
         error_handler.call(e, name, args)
       end
@@ -117,19 +120,23 @@ module Stalker
 
   # Passes the Beanstalk::Job instance to the Stalker job as a second argument after args
   def run_beanstalk_style_job(job, name, args, handler, style_opts)
-    begin
-      Timeout::timeout(job.ttr - 1) do
-        if defined? @@before_handlers and @@before_handlers.respond_to? :each
-          @@before_handlers.each do |block|
-            block.call(name)
+    unless style_opts['run_job_outside_of_stalker_timeout']
+      begin
+        Timeout::timeout(job.ttr - 1) do
+          if defined? @@before_handlers and @@before_handlers.respond_to? :each
+            @@before_handlers.each do |block|
+              block.call(name)
+            end
           end
+            handler.call(args, job, style_opts) 
         end
+      rescue Timeout::Error
+        raise JobTimeout, "Stalker before_handlers for Stalker.job##{name} hit #{job.ttr-1}s timeout"
       end
-    rescue Timeout::Error
-      raise JobTimeout, "Stalker before_handlers for Stalker.job##{name} hit #{job.ttr-1}s timeout"
-      job.bury rescue nil unless style_opts['no_bury_for_before_handler_timeout']
+    else
+      handler.call(args, job, style_opts)
     end
-    handler.call(args, job, style_opts)
+    
     unless style_opts['explicit_delete']
       job.delete
       log_job_end(name)
