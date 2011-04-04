@@ -9,6 +9,9 @@ end
 
 class StalkerBeanstalkStyleTest < Test::Unit::TestCase
   setup do
+    results = `pgrep beanstalkd`
+    raise "Can not run tests, beanstalkd not running" if $?.exitstatus != 0
+    
     Stalker.clear!
     $result = -1
     $handled = false
@@ -135,7 +138,7 @@ class StalkerBeanstalkStyleTest < Test::Unit::TestCase
   test "beanstalk_style job can delete itself when enqueued with explicit_delete" do
     val = rand(999999)
     Stalker.job('self_delete.job') { |args, job, opts| $result = args['val']; job.delete }
-    Stalker.enqueue('self_delete.job', {:val => val}, {}, true, {'explicit_delete' => true})
+    Stalker.enqueue('self_delete.job', {:val => val}, {}, true, {:explicit_delete => true})
     Stalker.prep
     Stalker.work_one_job
     assert_equal val, $result
@@ -148,7 +151,7 @@ class StalkerBeanstalkStyleTest < Test::Unit::TestCase
       (0..2).each { |c| sleep 1; job.touch }
       $handled = true
      end
-    Stalker.enqueue('my.job', {}, {:ttr => 2}, true, {'run_job_outside_of_stalker_timeout' => true})
+    Stalker.enqueue('my.job', {}, {:ttr => 2}, true, {:run_job_outside_of_stalker_timeout => true})
     Stalker.prep
     Stalker.work_one_job
     assert_equal true, $handled

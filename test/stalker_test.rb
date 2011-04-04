@@ -9,6 +9,9 @@ end
 
 class StalkerTest < Test::Unit::TestCase
   setup do
+    results = `pgrep beanstalkd`
+    raise "Can not run tests, beanstalkd not running" if $?.exitstatus != 0
+    
     Stalker.clear!
     $result = -1
     $handled = false
